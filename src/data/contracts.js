@@ -214,4 +214,14 @@ export const CONTRACTS = {
     abiName: 'SBT_FACTORY',
     contractAddress: '.contextData.chainConfig.sbt_factory',
   },
+  NOMAD_MODULE: {
+    location: 'local',
+    abiName: 'NOMAD_MODULE',
+    conractAddress: '.localValues.nomadModuleAddress',
+  },
+  NOMAD_HOME: {
+    location: 'local',
+    abiName: 'NOMAD_HOME',
+    contractAddress: '.localValues.nomadHomeAddress',
+  },
 };

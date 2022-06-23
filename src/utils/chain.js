@@ -70,7 +70,7 @@ export const supportedChains = {
       },
       foreign_networks: [
         {
-          name: 'xDAI',
+          name: 'GnosisChain',
           value: '0x64',
         },
       ],
@@ -80,6 +80,15 @@ export const supportedChains = {
       monitoring_app: {
         '0x64': 'https://alm-xdai.herokuapp.com/100',
       },
+    },
+    zodiac_nomad_module: {
+      environment: 'production',
+      foreign_networks: [
+        {
+          name: 'GnosisChain',
+          value: '0x64',
+        },
+      ],
     },
   },
   '0x4': {
@@ -166,6 +175,39 @@ export const supportedChains = {
         '0x64': 'https://alm-rinkeby.herokuapp.com/4',
       },
     },
+    zodiac_nomad_module: {
+      domainId: 1001,
+      environment: 'development',
+      masterCopyAddress: '0x471dBa2D598F8764f6C883FAD35ab099700503f5',
+      moduleProxyFactory: {
+        '0x5': '0x1E4DE3A0C887228BD88E90976dd02aB6e348077F', // TODO: remove when Goerli is officially available
+      },
+      xAppConnectionManager: {
+        '0x5': '0x859943879f79ce8d2e9e1d8c848c7ce9f6eb63d8',
+      },
+      foreign_networks: [
+        {
+          name: 'Goerli',
+          value: '0x5',
+        },
+      ],
+    },
+  },
+  '0x5': {
+    name: 'Ethereum Goerli',
+    short_name: 'goerli',
+    shortNamePrefix: 'gor',
+    nativeCurrency: 'ETH',
+    network: 'goerli',
+    network_id: 5,
+    chain_id: '0x5',
+    // hub_sort_order: 8,
+    providers: ['walletconnect'],
+    // , 'portis', 'fortmatic'
+    rpc_url: getRPCUrl(5),
+    abi_api_url:
+      'https://api-goerli.etherscan.io/api?module=contract&action=getabi&address=',
+    tokenlist_api_url: 'https://api-goerli.etherscan.io/api',
   },
   '0x2a': {
     name: 'Ethereum Kovan',
@@ -363,6 +405,15 @@ export const supportedChains = {
         '0x1': 'https://alm-xdai.herokuapp.com/100',
         '0x4': 'https://alm-rinkeby.herokuapp.com/100',
       },
+    },
+    zodiac_nomad_module: {
+      environment: 'production',
+      foreign_networks: [
+        {
+          name: 'Ethereum',
+          value: '0x1',
+        },
+      ],
     },
   },
   '0x89': {

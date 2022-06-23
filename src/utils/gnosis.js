@@ -1,17 +1,23 @@
 import SafeMasterCopy from '@gnosis.pm/safe-contracts/build/artifacts/contracts/GnosisSafe.sol/GnosisSafe.json';
+import { encodeMultiSend } from '@gnosis.pm/safe-contracts';
 import Safe from '@gnosis.pm/safe-core-sdk';
 import { getSafeSingletonDeployment } from '@gnosis.pm/safe-deployments';
 import Web3Adapter from '@gnosis.pm/safe-web3-lib';
 import { deployAndSetUpModule } from '@gnosis.pm/zodiac';
-import { ethers } from 'ethers';
+import { utils as NomadUtils } from '@nomad-xyz/multi-provider';
+import { ethers, utils } from 'ethers';
 import { encodeMulti, encodeSingle, TransactionType } from 'ethers-multisend';
 import Web3 from 'web3';
 
-import { getLocalABI } from './abi';
+import { getLocalABI, getABIsnippet } from './abi';
 import { chainByID } from './chain';
 import { createContract } from './contract';
+import { MINION_TYPES } from './proposalUtils';
 import { postApiGnosis, postGnosisRelayApi } from './requests';
 import { CONTRACTS } from '../data/contracts';
+import { BOOSTS } from '../data/boosts';
+
+// const NomadSDK = await import('@nomad-xyz/sdk');
 
 export const isAmbModule = async (
   address,
@@ -366,6 +372,100 @@ export const deployZodiacBridgeModule = async (
   }
 };
 
+export const deployZodiacNomadModule = async (
+  owner,
+  avatar,
+  target,
+  manager,
+  controller,
+  controllerDomain,
+  chainId,
+  foreignChainId,
+  injectedProvider,
+  saltNonce,
+) => {
+  try {
+    const { masterCopyAddress, moduleProxyFactory } = chainByID(
+      chainId,
+    ).zodiac_nomad_module;
+
+    const provider = new ethers.providers.Web3Provider(
+      injectedProvider.currentProvider,
+    );
+
+    // TODO: This is a temporary solution until NomadModule is officialy added to Zodiac
+    // Then, use `prepareZodiacModuleSetupTx` defined above
+    const factoryAbi = [
+      'function deployModule(address masterCopy, bytes memory initializer, uint256 saltNonce) public returns (address proxy)',
+    ];
+    const factory = new ethers.Contract(
+      moduleProxyFactory[foreignChainId],
+      factoryAbi,
+      provider,
+    );
+
+    const moduleAbi = getLocalABI(CONTRACTS.NOMAD_MODULE);
+    const masterCopyModule = new ethers.Contract(
+      masterCopyAddress,
+      moduleAbi,
+      provider,
+    );
+    const args = {
+      types: ['address', 'address', 'address', 'address', 'address', 'uint32'],
+      values: [owner, avatar, target, manager, controller, controllerDomain],
+    };
+
+    const encodedInitParams = ethers.utils.defaultAbiCoder.encode(
+      args.types,
+      args.values,
+    );
+    const moduleSetupData = masterCopyModule.interface.encodeFunctionData(
+      'setUp',
+      [encodedInitParams],
+    );
+    const calculateProxyAddress = (factory, masterCopy, initData) => {
+      const byteCode =
+        '0x602d8060093d393df3363d3d373d3d3d363d73' +
+        // masterCopyAddress +
+        masterCopy.toLowerCase().replace(/^0x/, '') +
+        '5af43d82803e903d91602b57fd5bf3';
+      const salt = ethers.utils.solidityKeccak256(
+        ['bytes32', 'uint256'],
+        [ethers.utils.solidityKeccak256(['bytes'], [initData]), saltNonce],
+      );
+      return ethers.utils.getCreate2Address(
+        factory.address,
+        salt,
+        ethers.utils.keccak256(byteCode),
+      );
+    };
+    const expectedModuleAddress = calculateProxyAddress(
+      factory,
+      masterCopyAddress,
+      moduleSetupData,
+      saltNonce,
+    );
+    const deployData = factory.interface.encodeFunctionData('deployModule', [
+      masterCopyModule.address,
+      moduleSetupData,
+      saltNonce,
+    ]);
+
+    const transaction = {
+      data: deployData,
+      to: factory.address,
+      value: ethers.BigNumber.from(0),
+    };
+    // END TODO
+
+    const tx = await provider.getSigner().sendTransaction(transaction);
+    await tx.wait();
+    return expectedModuleAddress;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 export const encodeAmbTxProposal = async (
   ambModuleAddress,
   chainId,
@@ -400,6 +500,83 @@ export const encodeAmbTxProposal = async (
   } catch (error) {
     console.error('failed to encodeAmbTxMessage', error);
   }
+};
+
+export const getAvailableCrossChainIds = (boostId, chainId, minionType) => {
+  if (
+    boostId === BOOSTS.CROSS_CHAIN_MINION.id ||
+    minionType === MINION_TYPES.CROSSCHAIN_SAFE
+  ) {
+    return {
+      zodiacModule: 'ambModule',
+      availableNetworks: chainByID(chainId).zodiac_amb_module?.foreign_networks,
+    };
+  }
+  if (
+    boostId === BOOSTS.CROSS_CHAIN_MINION_NOMAD.id ||
+    minionType === MINION_TYPES.CROSSCHAIN_SAFE_NOMAD
+  ) {
+    return {
+      zodiacModule: 'nomadModule',
+      availableNetworks: chainByID(chainId).zodiac_nomad_module
+        ?.foreign_networks,
+    };
+  }
+};
+
+export const encodeNomadTx = () => {
+  const dispatchFunction = getABIsnippet({
+    contract: CONTRACTS.NOMAD_HOME,
+    fnName: 'dispatch',
+  });
+  const destinationDomainId = '3001'; // TODO: Goerli
+  const recipientAddress = utils.hexlify(
+    NomadUtils.canonizeId(
+      '0x471dBa2D598F8764f6C883FAD35ab099700503f5', // TODO: Nomad module form Avatar in foreign chain
+    ),
+  );
+  // const recipientAddress = '0xE48C3664296173c9131AD267c319090791727006'; // TODO: Avatar in foreign chain
+  // const recipientAddress = '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761'; // TODO: Safe multisend on foreign chain
+
+  const web3 = new Web3();
+  const multiSendFn = getABIsnippet({
+    contract: CONTRACTS.LOCAL_SAFE_MULTISEND,
+    fnName: 'multiSend',
+  });
+  const erc20TransferFn = getABIsnippet({
+    contract: CONTRACTS.LOCAL_ERC_20,
+    fnName: 'transfer',
+  });
+  // TODO:
+  const encodedTx = web3.eth.abi.encodeFunctionCall(multiSendFn, [
+    encodeMultiSend([
+      {
+        to: '0xdc31Ee1784292379Fbb2964b3B9C4124D8F89C60', // DAI on Goerli
+        value: '0',
+        data: web3.eth.abi.encodeFunctionCall(erc20TransferFn, [
+          '0x10136Fa41B6522E4DBd068C6F7D80373aBbCFBe6', // dst
+          '15000000000000000000', // wad
+        ]),
+        operation: '0',
+      },
+    ]),
+  ]);
+  console.log('encodedTx', encodedTx);
+  const messageBody = ethers.utils.defaultAbiCoder.encode(
+    ['address', 'uint256', 'bytes', 'uint8'],
+    [
+      '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761', // to: multisend
+      '0', // value
+      encodedTx, // data
+      '1', // Delegate Call
+    ],
+  );
+
+  return {
+    targetContract: '0x0977fc99b94fd769ea4fbbfa14777434f773ced2', // TODO: Nomad Home contract on Rinkeby
+    abiInput: JSON.stringify(dispatchFunction),
+    abiArgs: [destinationDomainId, recipientAddress, messageBody],
+  };
 };
 
 export const encodeSafeSignMessage = (chainId, message) => {

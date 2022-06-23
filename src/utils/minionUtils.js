@@ -4,6 +4,7 @@ import { createContract } from './contract';
 import { decodeAMBTx, decodeMultisendTx, fetchABI, getMinionAbi } from './abi';
 import { MINION_TYPES } from './proposalUtils';
 import { chainByID, getScanKey } from './chain';
+import { BOOSTS } from '../data/boosts';
 import { TX } from '../data/txLegos/contractTX';
 
 // If a minion has separate action names (ex. UBER),
@@ -252,4 +253,24 @@ export const getExecuteAction = ({ minion }) => {
   if (minionType === MINION_TYPES.SAFE) {
     return TX.MINION_SAFE_EXECUTE;
   }
+};
+
+export const getMinionSafeNameByPattern = ({ boostId, minionType, values }) => {
+  const SEPARATOR = /<\d+>/g;
+  const getPattern = () => {
+    if (
+      boostId === BOOSTS.CROSS_CHAIN_MINION.id ||
+      minionType === MINION_TYPES.CROSSCHAIN_SAFE
+    ) {
+      return '0xab270234/<0>/<1>/<2>'; // bytes4(keccak256(abi.encodePacked('AMBMinionSafe'))) === 0xab270234
+    }
+    if (
+      boostId === BOOSTS.CROSS_CHAIN_MINION_NOMAD.id ||
+      minionType === MINION_TYPES.CROSSCHAIN_SAFE_NOMAD
+    ) {
+      return '0xfc3b5b76/<0>/<1>/<2>'; // bytes4(keccak256(abi.encodePacked("NomadMinionSafe"))) === 0xfc3b5b76
+    }
+  };
+  const pattern = getPattern();
+  return pattern?.replace(SEPARATOR, k => values[k]) || values['_minionName'];
 };

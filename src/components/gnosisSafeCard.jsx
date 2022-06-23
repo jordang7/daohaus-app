@@ -14,6 +14,7 @@ import { chainByID } from '../utils/chain';
 const GnosisSafeCard = ({
   actionDetails,
   handleCopy,
+  minionDetails,
   safeDetails,
   targetChain,
   title = 'Gnosis Safe',
@@ -67,6 +68,7 @@ const GnosisSafeCard = ({
         </Box>
       )}
       {actionDetails}
+      {minionDetails}
     </Flex>
   );
 };
