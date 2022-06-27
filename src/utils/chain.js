@@ -182,11 +182,11 @@ export const supportedChains = {
       'https://api.goerli.etherscan.io/api?module=contract&action=getabi&address=',
     tokenlist_api_url: 'https://api.goerli.etherscan.io/api',
     subgraph_url:
-      'https://thegraph.com/hosted-service/subgraph/odyssy-automaton/daohaus-goerli',
+      'https://api.thegraph.com/subgraphs/name/odyssy-automaton/daohaus-goerli',
     stats_graph_url:
-      'https://thegraph.com/hosted-service/subgraph/odyssy-automaton/daohaus-stats-goerli',
+      'https://api.thegraph.com/subgraphs/name/odyssy-automaton/daohaus-stats-goerli',
     boosts_graph_url:
-      'https://thegraph.com/hosted-service/subgraph/odyssy-automaton/daohaus-boosts-goerli',
+      'https://api.thegraph.com/subgraphs/name/odyssy-automaton/daohaus-boosts-goerli',
     // TODO update graph endpoints when ready
     // erc721_graph_url:
     //   'https://api.thegraph.com/subgraphs/name/sunguru98/matic-erc721-subgraph',
