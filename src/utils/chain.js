@@ -82,7 +82,15 @@ export const supportedChains = {
       },
     },
     zodiac_nomad_module: {
+      domainId: 6648936,
       environment: 'production',
+      masterCopyAddress: '', // TODO:
+      moduleProxyFactory: {
+        '0x64': '', // TODO: remove when Goerli is officially available
+      },
+      xAppConnectionManager: {
+        '0x64': '', // TODO:
+      },
       foreign_networks: [
         {
           name: 'GnosisChain',
@@ -208,6 +216,7 @@ export const supportedChains = {
     abi_api_url:
       'https://api-goerli.etherscan.io/api?module=contract&action=getabi&address=',
     tokenlist_api_url: 'https://api-goerli.etherscan.io/api',
+    block_explorer: 'https://goerli.etherscan.io',
   },
   '0x2a': {
     name: 'Ethereum Kovan',
@@ -407,7 +416,15 @@ export const supportedChains = {
       },
     },
     zodiac_nomad_module: {
+      domainId: 2019844457,
       environment: 'production',
+      masterCopyAddress: '', // TODO:
+      moduleProxyFactory: {
+        '0x1': '', // TODO: remove when Goerli is officially available
+      },
+      xAppConnectionManager: {
+        '0x1': '', // TODO:
+      },
       foreign_networks: [
         {
           name: 'Ethereum',

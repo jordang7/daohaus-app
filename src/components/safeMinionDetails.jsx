@@ -185,10 +185,10 @@ const SafeMinionDetails = ({
       const encodedTx = await encodeSwapSafeOwnersBy(
         vault.foreignChainId,
         vault.foreignSafeAddress,
-        foreignSafeDetails.ambModuleAddress,
+        foreignSafeDetails.crossChainModuleAddress,
       );
       const txProposal = await encodeAmbTxProposal(
-        foreignSafeDetails.ambModuleAddress,
+        foreignSafeDetails.crossChainModuleAddress,
         daochain,
         encodedTx,
         vault.foreignChainId,
@@ -309,13 +309,13 @@ const SafeMinionDetails = ({
           {foreignSafeDetails && (
             <GnosisSafeCard
               actionDetails={
-                (!foreignSafeDetails.ambModuleAddress ||
+                (!foreignSafeDetails.crossChainModuleAddress ||
                   !foreignSafeDetails.owners.includes(
-                    foreignSafeDetails.ambModuleAddress,
+                    foreignSafeDetails.crossChainModuleAddress,
                   ) > 0) && (
                   <>
                     <Text mt={4}>Actions</Text>
-                    {!foreignSafeDetails.ambModuleAddress && (
+                    {!foreignSafeDetails.crossChainModuleAddress && (
                       <Flex mt={4}>
                         <ToolTipWrapper
                           placement='right'
@@ -344,9 +344,9 @@ const SafeMinionDetails = ({
                         </ToolTipWrapper>
                       </Flex>
                     )}
-                    {foreignSafeDetails.ambModuleAddress &&
+                    {foreignSafeDetails.crossChainModuleAddress &&
                       !foreignSafeDetails.owners.includes(
-                        foreignSafeDetails.ambModuleAddress,
+                        foreignSafeDetails.crossChainModuleAddress,
                       ) && (
                         <Flex mt={4}>
                           <ToolTipWrapper
@@ -379,6 +379,12 @@ const SafeMinionDetails = ({
               handleCopy={handleCopy}
               safeDetails={foreignSafeDetails}
               targetChain={vault.foreignChainId}
+              zodiacModules={[
+                {
+                  name: vault.bridgeModule,
+                  address: foreignSafeDetails.crossChainModuleAddress,
+                },
+              ]}
               title='Foreign Gnosis Safe'
             />
           )}

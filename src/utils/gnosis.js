@@ -41,6 +41,25 @@ export const isAmbModule = async (
   }
 };
 
+export const isNomadModule = async (
+  address,
+  controller,
+  domainId,
+  targetChainId,
+) => {
+  const abi = getLocalABI(CONTRACTS.NOMAD_MODULE);
+  const contract = createContract({ address, abi, chainID: targetChainId });
+  try {
+    const valid = await contract.methods
+      .isController(controller, domainId)
+      .call();
+    return valid;
+  } catch (error) {
+    console.error('Not an Nomad module', address, error);
+    return false;
+  }
+};
+
 export const getSafe = async ({
   chainID,
   injectedProvider,
@@ -127,11 +146,69 @@ export const fetchAmbModule = async (
   ).find(v => v);
 };
 
+export const fetchNomadModule = async (
+  controller, // { address, domainId }
+  foreignChainId,
+  foreignSafeAddress,
+) => {
+  const safeSdk = await getSafe({
+    chainID: foreignChainId,
+    safeAddress: foreignSafeAddress,
+  });
+  const modules = await safeSdk?.getModules();
+  if (!modules) return;
+  return (
+    await Promise.all(
+      modules.map(async moduleAddress => {
+        return (
+          (await isNomadModule(
+            moduleAddress,
+            controller.address,
+            controller.domainId,
+            foreignChainId,
+          )) && moduleAddress
+        );
+      }),
+    )
+  ).find(v => v);
+};
+
+export const fetchCrossChainZodiacModule = async ({
+  chainID,
+  crossChainController, // { address, bridgeModule, chainId }
+  safeAddress,
+}) => {
+  const { bridgeModule } = crossChainController;
+  if (bridgeModule === 'AMBModule')
+    return fetchAmbModule(
+      {
+        chainId: crossChainController.chainId,
+        address: crossChainController.address,
+      },
+      chainID,
+      safeAddress,
+    );
+  if (bridgeModule === 'NomadModule') {
+    const { domainId } = chainByID(
+      crossChainController.chainId,
+    )?.zodiac_nomad_module;
+    if (domainId)
+      return fetchNomadModule(
+        {
+          domainId,
+          address: crossChainController.address,
+        },
+        chainID,
+        safeAddress,
+      );
+  }
+};
+
 export const fetchSafeDetails = async ({
   chainID,
   safeAddress,
   minionAddress,
-  ambController, // if cross-chain minion -> { chainid, address }
+  crossChainController, // if cross-chain minion -> { address, bridgeModule, chainId }
 }) => {
   const safeSdk = await getSafe({
     chainID,
@@ -146,9 +223,13 @@ export const fetchSafeDetails = async ({
     threshold: await safeSdk.getThreshold(),
     isMinionModule:
       minionAddress && (await isModuleEnabledInternal(safeSdk, minionAddress)),
-    ambModuleAddress:
-      ambController &&
-      (await fetchAmbModule(ambController, chainID, safeAddress)),
+    crossChainModuleAddress:
+      crossChainController &&
+      (await fetchCrossChainZodiacModule({
+        chainID,
+        crossChainController,
+        safeAddress,
+      })),
   };
 };
 
