@@ -82,8 +82,12 @@ export const supportedChains = {
       },
     },
     zodiac_nomad_module: {
+      bridge_domain_ids: {
+        '0x64': 2019844457,
+      },
       domainId: 6648936,
       environment: 'production',
+      homeContract: '0x92d3404a7e6c91455bbd81475cd9fad96acff4c8',
       masterCopyAddress: '', // TODO:
       moduleProxyFactory: {
         '0x64': '', // TODO: remove when Goerli is officially available
@@ -184,8 +188,12 @@ export const supportedChains = {
       },
     },
     zodiac_nomad_module: {
+      bridge_domain_ids: {
+        '0x5': 3001,
+      },
       domainId: 1001,
       environment: 'development',
+      homeContract: '0x0977fc99b94fd769ea4fbbfa14777434f773ced2',
       masterCopyAddress: '0x471dBa2D598F8764f6C883FAD35ab099700503f5',
       moduleProxyFactory: {
         '0x5': '0x1E4DE3A0C887228BD88E90976dd02aB6e348077F', // TODO: remove when Goerli is officially available
@@ -212,11 +220,14 @@ export const supportedChains = {
     // hub_sort_order: 8,
     providers: ['walletconnect'],
     // , 'portis', 'fortmatic'
-    rpc_url: getRPCUrl(5),
+    rpc_url: `https://goerli.infura.io/v3/${process.env.REACT_APP_INFURA_PROJECT_ID}`,
     abi_api_url:
       'https://api-goerli.etherscan.io/api?module=contract&action=getabi&address=',
     tokenlist_api_url: 'https://api-goerli.etherscan.io/api',
     block_explorer: 'https://goerli.etherscan.io',
+    safeMinion: {
+      safe_mutisend_addr: '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761',
+    },
   },
   '0x2a': {
     name: 'Ethereum Kovan',
@@ -416,8 +427,12 @@ export const supportedChains = {
       },
     },
     zodiac_nomad_module: {
+      bridge_domain_ids: {
+        '0x1': 6648936,
+      },
       domainId: 2019844457,
       environment: 'production',
+      homeContract: '0x4fce8a84c8f2ade7159596208dcbff7ffad5d459',
       masterCopyAddress: '', // TODO:
       moduleProxyFactory: {
         '0x1': '', // TODO: remove when Goerli is officially available

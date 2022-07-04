@@ -115,6 +115,17 @@ export const isProxyABI = response => {
   }
 };
 
+export const isBeaconProxyABI = response => {
+  return (
+    response.length == 3 &&
+    response.some(
+      fn =>
+        fn.type === 'constructor' &&
+        fn.inputs?.some(i => i.name === '_upgradeBeacon'),
+    )
+  );
+};
+
 const isGnosisProxy = response => {
   return (
     response.length === 2 &&
@@ -155,6 +166,20 @@ const processABI = async ({
     );
     const newData = await fetchABI(proxyAddress, chainID, parseJSON);
     return newData;
+  }
+  if (isBeaconProxyABI(abi)) {
+    const contractDetails = await fetchContractCode(contractAddress, chainID);
+    if (
+      contractDetails['Implementation'] ||
+      contractDetails['ImplementationAddress']
+    ) {
+      const implAddress =
+        contractDetails['Implementation'] ||
+        contractDetails['ImplementationAddress'];
+      const newData = await fetchABI(implAddress, chainID, parseJSON);
+      return newData;
+    }
+    return abi;
   }
   if (isSuperfluidProxy(abi)) {
     const proxy = createContract({
@@ -211,6 +236,27 @@ export const fetchABI = async (contractAddress, chainID, parseJSON = true) => {
       });
       return processedABI;
     }
+    return data;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const fetchContractCode = async (
+  contractAddress,
+  chainID,
+  parseJSON = true,
+) => {
+  const baseURI = `
+    ${
+      chainByID(chainID).tokenlist_api_url
+    }?module=contract&action=getsourcecode&address=${contractAddress}`;
+  const key = getBlockExplorerApiKey(chainID);
+  const url = key ? `${baseURI}&apiKey=${key}` : baseURI;
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.message === 'OK' && parseJSON) return data.result[0];
     return data;
   } catch (error) {
     console.error(error);

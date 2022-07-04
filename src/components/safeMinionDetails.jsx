@@ -22,9 +22,11 @@ import { ToolTipWrapper } from '../staticElements/wrappers';
 import { safeEncodeHexFunction } from '../utils/abi';
 import { chainByID } from '../utils/chain';
 import {
+  BRIDGE_MODULES,
   createGnosisSafeTxProposal,
   deployZodiacBridgeModule,
   encodeAmbTxProposal,
+  encodeNomadTxProposal,
   encodeSwapSafeOwnersBy,
 } from '../utils/gnosis';
 
@@ -187,12 +189,23 @@ const SafeMinionDetails = ({
         vault.foreignSafeAddress,
         foreignSafeDetails.crossChainModuleAddress,
       );
-      const txProposal = await encodeAmbTxProposal(
-        foreignSafeDetails.crossChainModuleAddress,
-        daochain,
-        encodedTx,
-        vault.foreignChainId,
-      );
+      const encodeBridgeTx = async () => {
+        if (vault.bridgeModule === BRIDGE_MODULES.AMB_MODULE)
+          return encodeAmbTxProposal(
+            foreignSafeDetails.crossChainModuleAddress,
+            daochain,
+            encodedTx,
+            vault.foreignChainId,
+          );
+        if (vault.bridgeModule === BRIDGE_MODULES.NOMAD_MODULE)
+          return encodeNomadTxProposal(
+            foreignSafeDetails.crossChainModuleAddress,
+            daochain,
+            [encodedTx],
+            vault.foreignChainId,
+          );
+      };
+      const txProposal = await encodeBridgeTx();
       await submitTransaction({
         tx: {
           ...TX.GENERIC_SAFE_MULTICALL,

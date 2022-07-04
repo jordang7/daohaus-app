@@ -530,9 +530,11 @@ const ProposalActions = ({
               )}
             </Stack>
           )}
-          {proposal?.executed && proposal?.minionExecuteActionTx && (
-            <CrossChainMinionExecute chainID={daochain} proposal={proposal} />
-          )}
+          {proposal?.minion?.crossChainMinion &&
+            proposal?.executed &&
+            proposal?.minionExecuteActionTx && (
+              <CrossChainMinionExecute chainID={daochain} proposal={proposal} />
+            )}
           {proposal?.escrow &&
             (proposal?.status === 'Failed' ||
               proposal?.status === 'Cancelled') && (

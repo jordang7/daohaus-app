@@ -17,7 +17,12 @@ import { postApiGnosis, postGnosisRelayApi } from './requests';
 import { CONTRACTS } from '../data/contracts';
 import { BOOSTS } from '../data/boosts';
 
-// const NomadSDK = await import('@nomad-xyz/sdk');
+export const BRIDGE_MODULES = {
+  AMB_MODULE: 'AMBModule',
+  NOMAD_MODULE: 'NomadModule',
+};
+
+const NomadSDK = await import('@nomad-xyz/sdk');
 
 export const isAmbModule = async (
   address,
@@ -179,7 +184,7 @@ export const fetchCrossChainZodiacModule = async ({
   safeAddress,
 }) => {
   const { bridgeModule } = crossChainController;
-  if (bridgeModule === 'AMBModule')
+  if (bridgeModule === BRIDGE_MODULES.AMB_MODULE)
     return fetchAmbModule(
       {
         chainId: crossChainController.chainId,
@@ -188,7 +193,7 @@ export const fetchCrossChainZodiacModule = async ({
       chainID,
       safeAddress,
     );
-  if (bridgeModule === 'NomadModule') {
+  if (bridgeModule === BRIDGE_MODULES.NOMAD_MODULE) {
     const { domainId } = chainByID(
       crossChainController.chainId,
     )?.zodiac_nomad_module;
@@ -583,6 +588,126 @@ export const encodeAmbTxProposal = async (
   }
 };
 
+export const encodeNomadTxProposal = async (
+  nomadModuleAddress,
+  chainId,
+  txList, // [{ to, data, value, operation }]
+  targetChainId,
+) => {
+  const homeChainConfig = chainByID(chainId);
+  const targetChainConfig = chainByID(targetChainId);
+  const homeNomadConfig = homeChainConfig.zodiac_nomad_module;
+  if (
+    !homeNomadConfig.bridge_domain_ids[targetChainId] ||
+    !targetChainConfig?.safeMinion?.safe_mutisend_addr
+  ) {
+    throw new Error('Nomad not available for target chain', targetChainId);
+  }
+  const destinationDomainId = homeNomadConfig.bridge_domain_ids[targetChainId];
+  // Nomad module from Avatar in foreign chain
+  const recipientAddress = utils.hexlify(
+    NomadUtils.canonizeId(nomadModuleAddress),
+  );
+  const multiSendFn = getABIsnippet({
+    contract: CONTRACTS.LOCAL_SAFE_MULTISEND,
+    fnName: 'multiSend',
+  });
+  const web3 = new Web3();
+  const encodedTx = web3.eth.abi.encodeFunctionCall(multiSendFn, [
+    encodeMultiSend(txList),
+  ]);
+  const messageBody = ethers.utils.defaultAbiCoder.encode(
+    ['address', 'uint256', 'bytes', 'uint8'],
+    [
+      targetChainConfig?.safeMinion?.safe_mutisend_addr, // to: multisend
+      '0', // value
+      encodedTx, // data
+      '1', // Delegate Call
+    ],
+  );
+  const dispatchFunction = getABIsnippet({
+    contract: CONTRACTS.NOMAD_HOME,
+    fnName: 'dispatch',
+  });
+  return {
+    targetContract: homeNomadConfig.homeContract,
+    abiInput: JSON.stringify(dispatchFunction),
+    abiArgs: [destinationDomainId, recipientAddress, messageBody],
+  };
+};
+
+export const getNomadTxStatus = async ({
+  homeChainId,
+  foreignChainId,
+  txHash,
+}) => {
+  try {
+    const homeChainConfig = chainByID(homeChainId);
+    const foreignChainConfig = chainByID(foreignChainId);
+    const core = new NomadSDK.NomadContext(
+      homeChainConfig.zodiac_nomad_module.environment,
+    );
+    core.registerRpcProvider(
+      homeChainConfig.short_name,
+      homeChainConfig.rpc_url,
+    );
+    core.registerRpcProvider(
+      foreignChainConfig.short_name,
+      foreignChainConfig.rpc_url,
+    );
+    const messages = await NomadSDK.NomadMessage.baseFromTransactionHash(
+      core,
+      homeChainConfig.short_name,
+      txHash,
+    );
+    const msgToInspect = messages.length && messages[0];
+    const nomadStatus = await msgToInspect.events(); // { status, events }
+
+    if (nomadStatus.status === NomadSDK.MessageStatus.Dispatched)
+      return {
+        statusMsg: 'Dispatched',
+        stage: 'Home',
+        txHash: nomadStatus.events[0].transactionHash,
+      };
+
+    if (nomadStatus.status === NomadSDK.MessageStatus.Included)
+      return {
+        statusMsg: 'Processing',
+        stage: 'Home',
+        txHash: nomadStatus.events[1].transactionHash,
+      };
+
+    if (nomadStatus.status === NomadSDK.MessageStatus.Relayed)
+      return {
+        statusMsg: 'Relayed',
+        stage: 'Replica',
+        txHash: nomadStatus.events[2].transactionHash,
+      };
+
+    if (nomadStatus.status === NomadSDK.MessageStatus.Processed) {
+      return {
+        statusMsg: 'Processed',
+        stage: 'Replica',
+        txHash: nomadStatus.events[3].transactionHash,
+      };
+    } else {
+      // 0: None | 1: Proven | 2: Processed
+      const replicaStatus = await msgToInspect.replicaStatus();
+      if (replicaStatus === NomadSDK.ReplicaMessageStatus.None)
+        return {
+          statusMsg: 'Waiting Period',
+          stage: 'Replica',
+        };
+      return {
+        statusMsg: 'Proven',
+        stage: 'Replica',
+      };
+    }
+  } catch (error) {
+    console.error('Failed to getNomadTxStatus', error);
+  }
+};
+
 export const getAvailableCrossChainIds = (boostId, chainId, minionType) => {
   if (
     boostId === BOOSTS.CROSS_CHAIN_MINION.id ||
@@ -603,61 +728,6 @@ export const getAvailableCrossChainIds = (boostId, chainId, minionType) => {
         ?.foreign_networks,
     };
   }
-};
-
-export const encodeNomadTx = () => {
-  const dispatchFunction = getABIsnippet({
-    contract: CONTRACTS.NOMAD_HOME,
-    fnName: 'dispatch',
-  });
-  const destinationDomainId = '3001'; // TODO: Goerli
-  const recipientAddress = utils.hexlify(
-    NomadUtils.canonizeId(
-      '0x471dBa2D598F8764f6C883FAD35ab099700503f5', // TODO: Nomad module form Avatar in foreign chain
-    ),
-  );
-  // const recipientAddress = '0xE48C3664296173c9131AD267c319090791727006'; // TODO: Avatar in foreign chain
-  // const recipientAddress = '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761'; // TODO: Safe multisend on foreign chain
-
-  const web3 = new Web3();
-  const multiSendFn = getABIsnippet({
-    contract: CONTRACTS.LOCAL_SAFE_MULTISEND,
-    fnName: 'multiSend',
-  });
-  const erc20TransferFn = getABIsnippet({
-    contract: CONTRACTS.LOCAL_ERC_20,
-    fnName: 'transfer',
-  });
-  // TODO:
-  const encodedTx = web3.eth.abi.encodeFunctionCall(multiSendFn, [
-    encodeMultiSend([
-      {
-        to: '0xdc31Ee1784292379Fbb2964b3B9C4124D8F89C60', // DAI on Goerli
-        value: '0',
-        data: web3.eth.abi.encodeFunctionCall(erc20TransferFn, [
-          '0x10136Fa41B6522E4DBd068C6F7D80373aBbCFBe6', // dst
-          '15000000000000000000', // wad
-        ]),
-        operation: '0',
-      },
-    ]),
-  ]);
-  console.log('encodedTx', encodedTx);
-  const messageBody = ethers.utils.defaultAbiCoder.encode(
-    ['address', 'uint256', 'bytes', 'uint8'],
-    [
-      '0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761', // to: multisend
-      '0', // value
-      encodedTx, // data
-      '1', // Delegate Call
-    ],
-  );
-
-  return {
-    targetContract: '0x0977fc99b94fd769ea4fbbfa14777434f773ced2', // TODO: Nomad Home contract on Rinkeby
-    abiInput: JSON.stringify(dispatchFunction),
-    abiArgs: [destinationDomainId, recipientAddress, messageBody],
-  };
 };
 
 export const encodeSafeSignMessage = (chainId, message) => {
